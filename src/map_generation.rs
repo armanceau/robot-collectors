@@ -1,5 +1,25 @@
 use noise::{NoiseFn, Perlin};
 use rand::{rngs::StdRng, Rng, SeedableRng};
+use std::fmt;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapGenerationError {
+    InvalidDimensions { width: usize, height: usize },
+}
+
+impl fmt::Display for MapGenerationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MapGenerationError::InvalidDimensions { width, height } => {
+                write!(
+                    f,
+                    "invalid map dimensions: width={} height={} (both must be > 0)",
+                    width, height
+                )
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResourceType {
@@ -35,7 +55,11 @@ impl Map {
     }
 }
 
-pub fn generate_map(seed: u64, width: usize, height: usize) -> Map {
+pub fn generate_map(seed: u64, width: usize, height: usize) -> Result<Map, MapGenerationError> {
+    if width == 0 || height == 0 {
+        return Err(MapGenerationError::InvalidDimensions { width, height });
+    }
+
     let mut rng = StdRng::seed_from_u64(seed);
     let perlin = Perlin::new(seed as u32);
     let mut tiles = Vec::with_capacity(width * height);
@@ -72,9 +96,9 @@ pub fn generate_map(seed: u64, width: usize, height: usize) -> Map {
         }
     }
 
-    Map {
+    Ok(Map {
         width,
         height,
         tiles,
-    }
+    })
 }
