@@ -1,5 +1,5 @@
 use noise::{NoiseFn, Perlin};
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,10 +32,7 @@ pub enum Tile {
     Empty,
     Obstacle,
     Base,
-    Resource {
-        kind: ResourceType,
-        amount: u16,
-    },
+    Resource { kind: ResourceType, amount: u16 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
