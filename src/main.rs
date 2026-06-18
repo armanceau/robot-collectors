@@ -215,7 +215,7 @@ fn build_stats_panel(state: &SimState) -> Vec<Line<'static>> {
         )]),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "q / Esc : quitter",
+            "Appuyez sur une touche pour quitter",
             Style::default().fg(Color::DarkGray),
         )]),
     ]
