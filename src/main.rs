@@ -127,14 +127,14 @@ fn map_to_lines(state: &SimState, viewport: Rect) -> Vec<Line<'static>> {
                     RobotKind::Collector => (
                         "o",
                         Style::default()
-                            .fg(Color::LightMagenta)
+                            .fg(Color::Magenta)
                             .add_modifier(Modifier::BOLD),
                     ),
                 }
             } else {
                 let idx = y * state.map_width + x;
                 match state.map_tiles[idx] {
-                    Tile::Obstacle => ("O", Style::default().fg(Color::Cyan)),
+                    Tile::Obstacle => ("O", Style::default().fg(Color::LightCyan)),
                     Tile::Base => ("#", Style::default().fg(Color::LightGreen)),
                     Tile::Resource {
                         kind: ResourceType::Energy,
