@@ -84,10 +84,7 @@ fn sim_state_can_represent_resources_and_base_tiles() {
             ..
         }
     ));
-    assert!(matches!(
-        state.map_tiles[2],
-        Tile::Base
-    ));
+    assert!(matches!(state.map_tiles[2], Tile::Base));
     assert!(matches!(
         state.map_tiles[3],
         Tile::Resource {
