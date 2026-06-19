@@ -5,7 +5,9 @@ use std::{
     time::Duration,
 };
 
-use rand::Rng;
+use rand::{Rng, SeedableRng, rngs::StdRng};
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 use crate::map_generation::{Map, ResourceType, Tile};
 
@@ -118,8 +120,14 @@ pub fn start_simulation(map: Map) -> Arc<RwLock<SimState>> {
     state
 }
 
+fn thread_rng_seeded() -> StdRng {
+    let mut hasher = DefaultHasher::new();
+    std::thread::current().id().hash(&mut hasher);
+    StdRng::seed_from_u64(hasher.finish())
+}
+
 fn run_scout(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMessage>) {
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng_seeded();
     loop {
         let (next, discovered) = {
             let s = state.read().unwrap();
@@ -184,7 +192,7 @@ fn discover_resources_around(
 }
 
 fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMessage>) {
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng_seeded();
     loop {
         let action = {
             let s = state.read().unwrap();
