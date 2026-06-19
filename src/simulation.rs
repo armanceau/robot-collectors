@@ -19,6 +19,7 @@ pub enum RobotKind {
     Collector,
 }
 
+
 #[derive(Debug, Clone)]
 pub struct RobotState {
     pub id: usize,
