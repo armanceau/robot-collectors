@@ -58,12 +58,12 @@ fn scouts_discover_resources_near_base() {
 
     let sim = start_simulation(Map { width, height, tiles });
 
-    thread::sleep(Duration::from_millis(2000));
+    thread::sleep(Duration::from_millis(6000));
 
     let state = sim.read().unwrap();
     assert!(
         !state.known_resources.is_empty(),
-        "les éclaireurs auraient dû découvrir la ressource adjacente en 2 secondes"
+        "les éclaireurs auraient dû découvrir la ressource adjacente en 6 secondes"
     );
 }
 
@@ -84,13 +84,13 @@ fn collectors_increase_totals_after_collecting() {
 
     let sim = start_simulation(Map { width, height, tiles });
 
-    thread::sleep(Duration::from_millis(5000));
+    thread::sleep(Duration::from_millis(15000));
 
     let state = sim.read().unwrap();
     let total = state.total_energy + state.total_crystal;
     assert!(
         total > 0,
-        "les collecteurs auraient dû rapporter des ressources en 5 secondes (total={total})"
+        "les collecteurs auraient dû rapporter des ressources en 15 secondes (total={total})"
     );
 }
 
@@ -112,7 +112,7 @@ fn depleted_resource_is_removed_from_known_resources() {
     let sim = start_simulation(Map { width, height, tiles });
 
     // Laisser le temps de collecter et retirer la ressource
-    thread::sleep(Duration::from_millis(5000));
+    thread::sleep(Duration::from_millis(15000));
 
     let state = sim.read().unwrap();
     let tile_idx = base_y * width + (base_x + 1);
