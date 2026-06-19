@@ -11,6 +11,10 @@ use std::collections::hash_map::DefaultHasher;
 
 use crate::map_generation::{Map, ResourceType, Tile};
 
+/// Délai entre chaque déplacement en millisecondes — plus petit = plus rapide
+const SCOUT_STEP_DELAY_MS: u64 = 120;
+const COLLECTOR_STEP_DELAY_MS: u64 = 180;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RobotKind {
     Scout,
@@ -129,6 +133,7 @@ fn thread_rng_seeded() -> StdRng {
 fn run_scout(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMessage>) {
     let mut rng = thread_rng_seeded();
     loop {
+        thread::sleep(Duration::from_millis(SCOUT_STEP_DELAY_MS));
         let (next, discovered) = {
             let s = state.read().unwrap();
             let r = &s.robots[id];
@@ -151,7 +156,6 @@ fn run_scout(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMess
             let _ = tx.send(RobotMessage::ResourceDiscovered { x, y, kind });
         }
 
-        thread::sleep(Duration::from_millis(120));
     }
 }
 
@@ -194,6 +198,7 @@ fn discover_resources_around(
 fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMessage>) {
     let mut rng = thread_rng_seeded();
     loop {
+        thread::sleep(Duration::from_millis(COLLECTOR_STEP_DELAY_MS));
         let action = {
             let s = state.read().unwrap();
             let r = &s.robots[id];
@@ -294,7 +299,6 @@ fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<Robot
             CollectorAction::Idle => {}
         }
 
-        thread::sleep(Duration::from_millis(180));
     }
 }
 
