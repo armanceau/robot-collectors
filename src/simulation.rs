@@ -9,10 +9,6 @@ use rand::Rng;
 
 use crate::map_generation::{Map, ResourceType, Tile};
 
-/// Délai entre chaque déplacement en millisecondes — plus petit = plus rapide
-const SCOUT_STEP_DELAY_MS: u64 = 120;
-const COLLECTOR_STEP_DELAY_MS: u64 = 200;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RobotKind {
     Scout,
@@ -137,7 +133,7 @@ fn run_scout(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMess
             let _ = tx.send(RobotMessage::ResourceDiscovered { x, y, kind });
         }
 
-        thread::sleep(Duration::from_millis(SCOUT_STEP_DELAY_MS));
+        thread::sleep(Duration::from_millis(120));
     }
 }
 
@@ -229,7 +225,7 @@ fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<Robot
             CollectorAction::Idle => {}
         }
 
-        thread::sleep(Duration::from_millis(COLLECTOR_STEP_DELAY_MS));
+        thread::sleep(Duration::from_millis(180));
     }
 }
 
