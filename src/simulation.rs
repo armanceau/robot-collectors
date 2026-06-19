@@ -17,6 +17,13 @@ pub enum RobotKind {
     Collector,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RobotMode {
+    Exploring,
+    MovingToResource { x: usize, y: usize },
+    ReturningToBase,
+}
+
 #[derive(Debug, Clone)]
 pub struct RobotState {
     pub id: usize,
@@ -25,6 +32,7 @@ pub struct RobotState {
     pub kind: RobotKind,
     pub carrying: u64,
     pub carrying_kind: Option<ResourceType>,
+    pub mode: RobotMode,
 }
 
 #[derive(Debug, Clone)]
@@ -55,12 +63,6 @@ enum RobotMessage {
     },
 }
 
-enum CollectorAction {
-    Move(usize, usize),
-    Collect(usize, usize),
-    Unload,
-    Idle,
-}
 
 /// Starts the simulation from a generated map.
 /// Returns a shared, thread-safe state that the UI can read each frame.
@@ -77,6 +79,7 @@ pub fn start_simulation(map: Map) -> Arc<RwLock<SimState>> {
             kind: RobotKind::Scout,
             carrying: 0,
             carrying_kind: None,
+            mode: RobotMode::Exploring,
         });
     }
     for i in 0..2usize {
@@ -87,6 +90,7 @@ pub fn start_simulation(map: Map) -> Arc<RwLock<SimState>> {
             kind: RobotKind::Collector,
             carrying: 0,
             carrying_kind: None,
+            mode: RobotMode::Exploring,
         });
     }
 
@@ -194,104 +198,125 @@ fn discover_resources_around(
 fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMessage>) {
     let mut rng = thread_rng_seeded();
     loop {
-        let action = {
+        let mode = {
             let s = state.read().unwrap();
-            let r = &s.robots[id];
-            let base_x = s.map_width / 2;
-            let base_y = s.map_height / 2;
-
-            if r.carrying > 0 {
-                if r.x == base_x && r.y == base_y {
-                    CollectorAction::Unload
-                } else {
-                    match bfs(
-                        &s.map_tiles,
-                        s.map_width,
-                        s.map_height,
-                        (r.x, r.y),
-                        (base_x, base_y),
-                    ) {
-                        Some((nx, ny)) => CollectorAction::Move(nx, ny),
-                        None => CollectorAction::Idle,
-                    }
-                }
-            } else {
-                let closest = s
-                    .known_resources
-                    .iter()
-                    .min_by_key(|(rx, ry, _)| {
-                        let dx = (*rx as isize - r.x as isize).unsigned_abs();
-                        let dy = (*ry as isize - r.y as isize).unsigned_abs();
-                        dx + dy
-                    })
-                    .copied();
-
-                if let Some((res_x, res_y, _)) = closest {
-                    if r.x == res_x && r.y == res_y {
-                        CollectorAction::Collect(res_x, res_y)
-                    } else {
-                        match bfs(
-                            &s.map_tiles,
-                            s.map_width,
-                            s.map_height,
-                            (r.x, r.y),
-                            (res_x, res_y),
-                        ) {
-                            Some((nx, ny)) => CollectorAction::Move(nx, ny),
-                            None => CollectorAction::Idle,
-                        }
-                    }
-                } else {
-                    match random_step(r.x, r.y, s.map_width, s.map_height, &s.map_tiles, &mut rng) {
-                        Some((nx, ny)) => CollectorAction::Move(nx, ny),
-                        None => CollectorAction::Idle,
-                    }
-                }
-            }
+            s.robots[id].mode.clone()
         };
 
-        match action {
-            CollectorAction::Move(nx, ny) => {
-                let mut s = state.write().unwrap();
-                s.robots[id].x = nx;
-                s.robots[id].y = ny;
-            }
-            CollectorAction::Collect(res_x, res_y) => {
-                let collected = {
-                    let mut s = state.write().unwrap();
-                    let idx = res_y * s.map_width + res_x;
-                    if let Tile::Resource { kind, amount } = s.map_tiles[idx] {
-                        s.map_tiles[idx] = if amount <= 1 {
-                            Tile::Empty
-                        } else {
-                            Tile::Resource {
-                                kind,
-                                amount: amount - 1,
-                            }
-                        };
-                        s.robots[id].carrying += 1;
-                        s.robots[id].carrying_kind = Some(kind);
-                        true
+        match mode {
+            RobotMode::Exploring => {
+                let (next_pos, new_mode) = {
+                    let s = state.read().unwrap();
+                    let r = &s.robots[id];
+                    let closest = s
+                        .known_resources
+                        .iter()
+                        .min_by_key(|(rx, ry, _)| {
+                            let dx = (*rx as isize - r.x as isize).unsigned_abs();
+                            let dy = (*ry as isize - r.y as isize).unsigned_abs();
+                            dx + dy
+                        })
+                        .copied();
+
+                    if let Some((res_x, res_y, _)) = closest {
+                        let next = bfs(&s.map_tiles, s.map_width, s.map_height, (r.x, r.y), (res_x, res_y));
+                        (next, Some(RobotMode::MovingToResource { x: res_x, y: res_y }))
                     } else {
-                        false
+                        let next = random_step(r.x, r.y, s.map_width, s.map_height, &s.map_tiles, &mut rng);
+                        (next, None)
                     }
                 };
-                if collected {
-                    let _ = tx.send(RobotMessage::ResourceCollected { x: res_x, y: res_y });
+
+                let mut s = state.write().unwrap();
+                if let Some((nx, ny)) = next_pos {
+                    s.robots[id].x = nx;
+                    s.robots[id].y = ny;
+                }
+                if let Some(m) = new_mode {
+                    s.robots[id].mode = m;
                 }
             }
-            CollectorAction::Unload => {
-                let (kind, amount) = {
-                    let mut s = state.write().unwrap();
-                    let k = s.robots[id].carrying_kind.take();
-                    let a = std::mem::replace(&mut s.robots[id].carrying, 0);
-                    (k, a)
+
+            RobotMode::MovingToResource { x, y } => {
+                let (robot_x, robot_y) = {
+                    let s = state.read().unwrap();
+                    (s.robots[id].x, s.robots[id].y)
                 };
-                if let Some(k) = kind {
-                    let _ = tx.send(RobotMessage::ResourceUnloaded { kind: k, amount });
+
+                if robot_x == x && robot_y == y {
+                    let collected = {
+                        let mut s = state.write().unwrap();
+                        let idx = y * s.map_width + x;
+                        if let Tile::Resource { kind, amount } = s.map_tiles[idx] {
+                            s.map_tiles[idx] = if amount <= 1 {
+                                Tile::Empty
+                            } else {
+                                Tile::Resource { kind, amount: amount - 1 }
+                            };
+                            s.robots[id].carrying += 1;
+                            s.robots[id].carrying_kind = Some(kind);
+                            s.robots[id].mode = RobotMode::ReturningToBase;
+                            true
+                        } else {
+                            s.robots[id].mode = RobotMode::Exploring;
+                            false
+                        }
+                    };
+                    if collected {
+                        let _ = tx.send(RobotMessage::ResourceCollected { x, y });
+                    }
+                } else {
+                    let next = {
+                        let s = state.read().unwrap();
+                        let r = &s.robots[id];
+                        let still_known = s.known_resources.iter().any(|&(rx, ry, _)| rx == x && ry == y);
+                        if still_known {
+                            bfs(&s.map_tiles, s.map_width, s.map_height, (r.x, r.y), (x, y))
+                        } else {
+                            None
+                        }
+                    };
+
+                    let mut s = state.write().unwrap();
+                    match next {
+                        Some((nx, ny)) => {
+                            s.robots[id].x = nx;
+                            s.robots[id].y = ny;
+                        }
+                        None => s.robots[id].mode = RobotMode::Exploring,
+                    }
                 }
             }
-            CollectorAction::Idle => {}
+
+            RobotMode::ReturningToBase => {
+                let (robot_x, robot_y, base_x, base_y) = {
+                    let s = state.read().unwrap();
+                    (s.robots[id].x, s.robots[id].y, s.map_width / 2, s.map_height / 2)
+                };
+
+                if robot_x == base_x && robot_y == base_y {
+                    let (kind, amount) = {
+                        let mut s = state.write().unwrap();
+                        let k = s.robots[id].carrying_kind.take();
+                        let a = std::mem::replace(&mut s.robots[id].carrying, 0);
+                        s.robots[id].mode = RobotMode::Exploring;
+                        (k, a)
+                    };
+                    if let Some(k) = kind {
+                        let _ = tx.send(RobotMessage::ResourceUnloaded { kind: k, amount });
+                    }
+                } else {
+                    let next = {
+                        let s = state.read().unwrap();
+                        bfs(&s.map_tiles, s.map_width, s.map_height, (robot_x, robot_y), (base_x, base_y))
+                    };
+                    if let Some((nx, ny)) = next {
+                        let mut s = state.write().unwrap();
+                        s.robots[id].x = nx;
+                        s.robots[id].y = ny;
+                    }
+                }
+            }
         }
 
         thread::sleep(Duration::from_millis(180));
