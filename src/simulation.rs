@@ -116,6 +116,7 @@ pub fn start_simulation(map: Map) -> Arc<RwLock<SimState>> {
 fn run_scout(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMessage>) {
     let mut rng = rand::thread_rng();
     loop {
+        thread::sleep(Duration::from_millis(SCOUT_STEP_DELAY_MS));
         let (next, discovered) = {
             let s = state.read().unwrap();
             let r = &s.robots[id];
@@ -137,14 +138,13 @@ fn run_scout(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMess
         if let Some((x, y, kind)) = discovered {
             let _ = tx.send(RobotMessage::ResourceDiscovered { x, y, kind });
         }
-
-        thread::sleep(Duration::from_millis(SCOUT_STEP_DELAY_MS));
     }
 }
 
 fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMessage>) {
     let mut rng = rand::thread_rng();
     loop {
+        thread::sleep(Duration::from_millis(COLLECTOR_STEP_DELAY_MS));
         let action = {
             let s = state.read().unwrap();
             let r = &s.robots[id];
@@ -229,8 +229,6 @@ fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<Robot
             }
             CollectorAction::Idle => {}
         }
-
-        thread::sleep(Duration::from_millis(COLLECTOR_STEP_DELAY_MS));
     }
 }
 
