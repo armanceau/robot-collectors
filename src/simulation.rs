@@ -38,9 +38,19 @@ pub struct SimState {
 
 #[derive(Debug)]
 enum RobotMessage {
-    ResourceDiscovered { x: usize, y: usize, kind: ResourceType },
-    ResourceCollected { x: usize, y: usize },
-    ResourceUnloaded { kind: ResourceType, amount: u64 },
+    ResourceDiscovered {
+        x: usize,
+        y: usize,
+        kind: ResourceType,
+    },
+    ResourceCollected {
+        x: usize,
+        y: usize,
+    },
+    ResourceUnloaded {
+        kind: ResourceType,
+        amount: u64,
+    },
 }
 
 enum CollectorAction {
@@ -115,11 +125,9 @@ fn run_scout(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<RobotMess
             let s = state.read().unwrap();
             let r = &s.robots[id];
             let next = random_step(r.x, r.y, s.map_width, s.map_height, &s.map_tiles, &mut rng);
-            let discovered = next.and_then(|(nx, ny)| {
-                match s.map_tiles[ny * s.map_width + nx] {
-                    Tile::Resource { kind, .. } => Some((nx, ny, kind)),
-                    _ => None,
-                }
+            let discovered = next.and_then(|(nx, ny)| match s.map_tiles[ny * s.map_width + nx] {
+                Tile::Resource { kind, .. } => Some((nx, ny, kind)),
+                _ => None,
             });
             (next, discovered)
         };
@@ -150,7 +158,13 @@ fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<Robot
                 if r.x == base_x && r.y == base_y {
                     CollectorAction::Unload
                 } else {
-                    match bfs(&s.map_tiles, s.map_width, s.map_height, (r.x, r.y), (base_x, base_y)) {
+                    match bfs(
+                        &s.map_tiles,
+                        s.map_width,
+                        s.map_height,
+                        (r.x, r.y),
+                        (base_x, base_y),
+                    ) {
                         Some((nx, ny)) => CollectorAction::Move(nx, ny),
                         None => CollectorAction::Idle,
                     }
@@ -170,7 +184,13 @@ fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<Robot
                     if r.x == res_x && r.y == res_y {
                         CollectorAction::Collect(res_x, res_y)
                     } else {
-                        match bfs(&s.map_tiles, s.map_width, s.map_height, (r.x, r.y), (res_x, res_y)) {
+                        match bfs(
+                            &s.map_tiles,
+                            s.map_width,
+                            s.map_height,
+                            (r.x, r.y),
+                            (res_x, res_y),
+                        ) {
                             Some((nx, ny)) => CollectorAction::Move(nx, ny),
                             None => CollectorAction::Idle,
                         }
@@ -198,7 +218,10 @@ fn run_collector(id: usize, state: Arc<RwLock<SimState>>, tx: mpsc::Sender<Robot
                         s.map_tiles[idx] = if amount <= 1 {
                             Tile::Empty
                         } else {
-                            Tile::Resource { kind, amount: amount - 1 }
+                            Tile::Resource {
+                                kind,
+                                amount: amount - 1,
+                            }
                         };
                         s.robots[id].carrying += 1;
                         s.robots[id].carrying_kind = Some(kind);
@@ -236,7 +259,10 @@ fn run_coordinator(state: Arc<RwLock<SimState>>, rx: mpsc::Receiver<RobotMessage
             RobotMessage::ResourceDiscovered { x, y, kind } => {
                 let idx = y * s.map_width + x;
                 if matches!(s.map_tiles[idx], Tile::Resource { .. })
-                    && !s.known_resources.iter().any(|&(rx, ry, _)| rx == x && ry == y)
+                    && !s
+                        .known_resources
+                        .iter()
+                        .any(|&(rx, ry, _)| rx == x && ry == y)
                 {
                     s.known_resources.push((x, y, kind));
                 }
@@ -244,7 +270,8 @@ fn run_coordinator(state: Arc<RwLock<SimState>>, rx: mpsc::Receiver<RobotMessage
             RobotMessage::ResourceCollected { x, y } => {
                 let idx = y * s.map_width + x;
                 if s.map_tiles[idx] == Tile::Empty {
-                    s.known_resources.retain(|&(rx, ry, _)| !(rx == x && ry == y));
+                    s.known_resources
+                        .retain(|&(rx, ry, _)| !(rx == x && ry == y));
                 }
             }
             RobotMessage::ResourceUnloaded { kind, amount } => match kind {
