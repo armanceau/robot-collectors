@@ -5,12 +5,11 @@ use std::{
 };
 
 use crossterm::{
-    event::{self, Event},
+    event::{self, Event, KeyCode},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use my_app::{ResourceType, SimState, Tile, generate_map, start_simulation, RobotKind};
-use rand::random;
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
@@ -27,7 +26,7 @@ fn main() {
 }
 
 fn run() -> io::Result<()> {
-    let map = generate_map(random(), 40, 20)
+    let map = generate_map(130, 40, 20)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
     enable_raw_mode()?;
@@ -94,8 +93,10 @@ fn run_app(
         })?;
 
         if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(_) = event::read()? {
-                return Ok(());
+            if let Event::Key(key) = event::read()? {
+                if key.code == KeyCode::Char('q') || key.code == KeyCode::Esc {
+                    return Ok(());
+                }
             }
         }
     }
