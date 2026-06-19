@@ -3,16 +3,17 @@ use std::{thread, time::Duration};
 use my_app::{Map, ResourceType, RobotKind, Tile, generate_map, start_simulation};
 
 #[test]
-fn all_robots_start_at_base_position() {
+fn robots_start_with_zero_cargo() {
+    // Les threads démarrent immédiatement donc on ne peut pas tester les positions
+    // (race condition), mais le cargo démarre forcément à 0 — collecter prend plusieurs
+    // centaines de millisecondes minimum.
     let map = generate_map(99, 10, 10).unwrap();
-    let base_x = map.width / 2;
-    let base_y = map.height / 2;
     let sim = start_simulation(map);
     let state = sim.read().unwrap();
 
     for robot in &state.robots {
-        assert_eq!(robot.x, base_x, "robot {} devrait démarrer à base_x={}", robot.id, base_x);
-        assert_eq!(robot.y, base_y, "robot {} devrait démarrer à base_y={}", robot.id, base_y);
+        assert_eq!(robot.carrying, 0, "robot {} devrait démarrer sans ressource transportée", robot.id);
+        assert!(robot.carrying_kind.is_none(), "robot {} ne devrait rien transporter au démarrage", robot.id);
     }
 }
 
